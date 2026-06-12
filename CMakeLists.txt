@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.26)
 
-set(PROJECT_NAME 1704165-Bootloader)
+set(PROJECT_NAME STM32H563-Cyclone-Bootloader)
 project(${PROJECT_NAME} C ASM)
 set(CMAKE_C_STANDARD 11)
 
