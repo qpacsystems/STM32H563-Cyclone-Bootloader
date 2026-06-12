@@ -16,7 +16,7 @@ automatic fallback after 3 failed boot attempts.
 
 ## Compilers
 
-Memory maps available for GCC or IAR builds
+Memory maps available for GCC or IAR builds in the `/linker` directory.
 
 ## Building
 
