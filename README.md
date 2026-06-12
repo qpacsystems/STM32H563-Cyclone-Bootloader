@@ -14,9 +14,11 @@ automatic fallback after 3 failed boot attempts.
 | Config | `0x080FE000 - 0x080FFFFF` | 8 KB | Persistent settings |
 | Bank 2 | `0x08100000 - 0x081FFFFF` | 1 MB | Update staging slot |
 
-## Compilers
+## Compiling
 
 Memory maps available for GCC or IAR builds in the `/linker` directory.
+
+To build properly, you must uncomment `#define GPL_LICENSE_TERMS_ACCEPTED` to deliberately show you know about the GPL license. Check `/src/os_port_config.h`.
 
 ## Building
 
