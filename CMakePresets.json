@@ -1,0 +1,83 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": { "major": 3, "minor": 26 },
+  "configurePresets": [
+    {
+      "name": "default",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_STANDARD": "11",
+        "CMAKE_SYSTEM_NAME": "Generic",
+        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
+        "CMAKE_EXECUTABLE_SUFFIX": ".elf"
+      }
+    },
+    {
+      "name": "GCC Debug Configure",
+      "displayName": "GCC Debug Configure",
+      "inherits": "default",
+      "binaryDir": "build/gcc/debug",
+      "toolchainFile": "tools/toolchain-gcc-arm.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "GCC Release Configure",
+      "displayName": "GCC Release Configure",
+      "inherits": "default",
+      "binaryDir": "build/gcc/release",
+      "toolchainFile": "tools/toolchain-gcc-arm.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "IAR Debug Configure",
+      "displayName": "IAR Debug Configure",
+      "inherits": "default",
+      "binaryDir": "build/iar/debug",
+      "toolchainFile": "tools/toolchain-iar-9-arm.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER_WORKS": "TRUE",
+        "CMAKE_CXX_COMPILER_WORKS": "TRUE"
+      }
+    },
+    {
+      "name": "IAR Release Configure",
+      "displayName": "IAR Release Configure",
+      "inherits": "default",
+      "binaryDir": "build/iar/release",
+      "toolchainFile": "tools/toolchain-iar-9-arm.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER_WORKS": "TRUE",
+        "CMAKE_CXX_COMPILER_WORKS": "TRUE"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "GCC Debug",
+      "displayName": "GCC Debug",
+      "configurePreset": "GCC Debug Configure"
+    },
+    {
+      "name": "GCC Release",
+      "displayName": "GCC Release",
+      "configurePreset": "GCC Release Configure"
+    },
+    {
+      "name": "IAR Debug",
+      "displayName": "IAR Debug",
+      "configurePreset": "IAR Debug Configure"
+    },
+    {
+      "name": "IAR Release",
+      "displayName": "IAR Release",
+      "configurePreset": "IAR Release Configure"
+    }
+  ]
+}

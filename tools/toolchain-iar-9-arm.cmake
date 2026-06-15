@@ -1,0 +1,15 @@
+set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_CROSSCOMPILING ON)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+find_program(CMAKE_C_COMPILER iccarm)
+find_program(CMAKE_ASM_COMPILER iasmarm)
+if(CMAKE_GENERATOR MATCHES "^Ninja.*$")
+    find_program(CMAKE_MAKE_PROGRAM
+            NAMES ninja.exe
+            PATHS $ENV{PATH}
+            REQUIRED)
+endif()
+
+set(CMAKE_C_COMPILER_WORKS TRUE)
+set(CMAKE_CXX_COMPILER_WORKS TRUE)

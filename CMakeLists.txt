@@ -6,7 +6,7 @@ set(CMAKE_C_STANDARD 11)
 
 # Cross-compile toolchain must be provided
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE OR NOT CMAKE_TOOLCHAIN_FILE)
-    message(FATAL_ERROR "CMAKE_TOOLCHAIN_FILE is required (arm-none-eabi-gcc toolchain)")
+    message(FATAL_ERROR "CMAKE_TOOLCHAIN_FILE is required (arm-none-eabi-gcc or IAR toolchain)")
 endif()
 
 # Library paths (populated when creating GitHub repo)
@@ -18,9 +18,13 @@ set(STM32_HAL_PATH      "${CMAKE_CURRENT_SOURCE_DIR}/lib/STM32CubeH5/Drivers")
 #---------------------------------------------------------------------------
 # Compiler flags for Cortex-M33 bare-metal
 #---------------------------------------------------------------------------
-set(CPU_FLAGS "-mcpu=cortex-m33 -mthumb -mfloat-abi=soft")
-set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} ${CPU_FLAGS} -fdata-sections -ffunction-sections -Wall -Wextra")
-set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} ${CPU_FLAGS}")
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    set(CPU_FLAGS "-mcpu=cortex-m33 -mthumb -mfloat-abi=soft")
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} ${CPU_FLAGS} -fdata-sections -ffunction-sections -Wall -Wextra")
+    set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} ${CPU_FLAGS}")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    # IAR flags are applied per-target below
+endif()
 
 add_compile_definitions(
     STM32H563xx
@@ -114,43 +118,83 @@ set(SOURCES_STM32_HAL
     ${STM32_HAL_PATH}/STM32H5xx_HAL_Driver/Src/stm32h5xx_hal_rcc_ex.c
 )
 
-# Startup
-set(SOURCES_STARTUP
-    startup/boot.gcc.s
-)
-
 #---------------------------------------------------------------------------
-# Build target
+# Compiler-specific startup and build target
 #---------------------------------------------------------------------------
-set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/linker/bootloader_flash.ld")
-
 set(BINARY_NAME "bootloader")
 
-add_executable(${BINARY_NAME}
-    ${SOURCES_APP}
-    ${SOURCES_CYCLONE_BOOT}
-    ${SOURCES_CYCLONE_CRYPTO}
-    ${SOURCES_CYCLONE_COMMON}
-    ${SOURCES_STM32_HAL}
-    ${SOURCES_STARTUP}
-)
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    #-----------------------------------------------------------------------
+    # GCC build
+    #-----------------------------------------------------------------------
+    set(SOURCES_STARTUP startup/boot.gcc.s)
+    set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/linker/bootloader_flash.ld")
 
-# Linker flags
-target_link_options(${BINARY_NAME} PRIVATE
-    -T${LINKER_SCRIPT}
-    -Wl,--gc-sections
-    -Wl,--print-memory-usage
-    --specs=nosys.specs
-    --specs=nano.specs
-    -lc
-    -lm
-    -lnosys
-)
+    add_executable(${BINARY_NAME}
+        ${SOURCES_APP}
+        ${SOURCES_CYCLONE_BOOT}
+        ${SOURCES_CYCLONE_CRYPTO}
+        ${SOURCES_CYCLONE_COMMON}
+        ${SOURCES_STM32_HAL}
+        ${SOURCES_STARTUP}
+    )
 
-# Post-build: generate .bin and .hex, print size
-add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${BINARY_NAME}> ${CMAKE_BINARY_DIR}/bootloader.bin
-    COMMAND ${CMAKE_OBJCOPY} -O ihex   $<TARGET_FILE:${BINARY_NAME}> ${CMAKE_BINARY_DIR}/bootloader.hex
-    COMMAND ${CMAKE_SIZE}    $<TARGET_FILE:${BINARY_NAME}>
-    COMMENT "Generating bootloader.bin and bootloader.hex"
-)
+    target_link_options(${BINARY_NAME} PRIVATE
+        -T${LINKER_SCRIPT}
+        -Wl,--gc-sections
+        -Wl,--print-memory-usage
+        --specs=nosys.specs
+        --specs=nano.specs
+        -lc
+        -lm
+        -lnosys
+    )
+
+    # Post-build: generate .bin and .hex, print size
+    add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${BINARY_NAME}> ${CMAKE_BINARY_DIR}/bootloader.bin
+        COMMAND ${CMAKE_OBJCOPY} -O ihex   $<TARGET_FILE:${BINARY_NAME}> ${CMAKE_BINARY_DIR}/bootloader.hex
+        COMMAND ${CMAKE_SIZE}    $<TARGET_FILE:${BINARY_NAME}>
+        COMMENT "Generating bootloader.bin and bootloader.hex"
+    )
+
+elseif(CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    #-----------------------------------------------------------------------
+    # IAR build
+    #-----------------------------------------------------------------------
+    set(SOURCES_STARTUP startup/boot.iar.s)
+    set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/linker/bootloader_flash.icf")
+
+    add_executable(${BINARY_NAME}
+        ${SOURCES_APP}
+        ${SOURCES_CYCLONE_BOOT}
+        ${SOURCES_CYCLONE_CRYPTO}
+        ${SOURCES_CYCLONE_COMMON}
+        ${SOURCES_STM32_HAL}
+        ${SOURCES_STARTUP}
+        ${LINKER_SCRIPT}
+    )
+
+    target_compile_options(${BINARY_NAME} PRIVATE
+        $<$<COMPILE_LANGUAGE:C>:--dlib_config=full -e --cpu Cortex-M33 --fpu=VFPv5-SP>
+        $<$<COMPILE_LANGUAGE:ASM>:--cpu Cortex-M33 --fpu=VFPv5-SP>
+    )
+
+    target_link_options(${BINARY_NAME} PRIVATE
+        --semihosting
+        --config ${LINKER_SCRIPT}
+    )
+
+    # Post-build: generate .bin and .hex via ielftool
+    find_program(IAR_ELF_TOOL ielftool)
+    if(IAR_ELF_TOOL)
+        add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+            COMMAND ${IAR_ELF_TOOL} --bin $<TARGET_FILE:${BINARY_NAME}> ${CMAKE_BINARY_DIR}/bootloader.bin
+            COMMAND ${IAR_ELF_TOOL} --ihex $<TARGET_FILE:${BINARY_NAME}> ${CMAKE_BINARY_DIR}/bootloader.hex
+            COMMENT "Generating bootloader.bin and bootloader.hex (IAR)"
+        )
+    endif()
+
+else()
+    message(FATAL_ERROR "Unsupported compiler: ${CMAKE_C_COMPILER_ID}. Use GCC or IAR.")
+endif()
