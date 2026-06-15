@@ -3,7 +3,9 @@ pipeline
     agent any
     options
     {
-        skipDefaultCheckout()
+        timeout(time: 90, unit: 'MINUTES')
+        disableConcurrentBuilds(abortPrevious: true)
+        buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '2'))
     }
 
     stages
@@ -52,17 +54,13 @@ pipeline
             {
                 echo 'Running cppcheck...'
                 bat "${env.WORKSPACE}\\tools\\cppcheck.bat"
-                publishCppcheck pattern:'cppcheck.xml'
-                script {
-                    def cppcheckXml = readFile 'cppcheck.xml'
-                    def errorTags = cppcheckXml.split('<error')
-                    def errorCount = errorTags.length - 1
-
-                    echo "Cppcheck found ${errorCount} issues"
-
-                    if (errorCount > 499) {
-                        error("Cppcheck failed: Found ${errorCount} issues, which exceeds the limit of 499")
-                    }
+                archiveArtifacts artifacts: 'cppcheck.xml', allowEmptyArchive: true
+                discoverGitReferenceBuild(referenceJob: 'STM32H563_CYCLONE_BOOTLOADER_DEVELOP/develop')
+                withChecks('CppCheck') {
+                    recordIssues(
+                        tools: [cppCheck(pattern: 'cppcheck.xml')],
+                        qualityGates: [[threshold: 1, type: 'NEW', unstable: false]]
+                    )
                 }
             }
         }
@@ -71,14 +69,33 @@ pipeline
             steps
             {
                 bat 'lizard src --warnings_only --sort "cyclomatic_complexity" -C=10 --length=50 -H > lizard_report.html'
+                bat 'lizard src --warnings_only --sort "cyclomatic_complexity" -C=10 --length=50 -X > lizard_report.xml'
                 archiveArtifacts artifacts: 'lizard_report.html', allowEmptyArchive: true
+                archiveArtifacts artifacts: 'lizard_report.xml', allowEmptyArchive: true
                 publishHTML(target: [
                     keepAll: true,
                     reportDir: '.',
+                    includes: 'lizard_report.html',
                     reportFiles: 'lizard_report.html',
                     reportName: 'Lizard Complexity',
                     useWrapperFileDirectly: true
                 ])
+                script {
+                    def title = 'Report available on Jenkins'
+                    try {
+                        def xml = readFile('lizard_report.xml')
+                        def start = xml.indexOf('<measure type="Function">')
+                        def end = xml.indexOf('</measure>', start)
+                        if (start >= 0 && end > start) {
+                            def section = xml.substring(start, end)
+                            def warningCount = section.split('<item ').length - 1
+                            title = "${warningCount} functions over CCN 10 / length 50"
+                        }
+                    } catch (Exception ignored) { }
+                    publishChecks name: 'Complexity', title: title,
+                        summary: 'Lizard cyclomatic complexity / function length warnings.',
+                        detailsURL: "${env.BUILD_URL}Lizard_20Complexity/"
+                }
             }
         }
         stage('Archive Artifacts')
@@ -92,11 +109,4 @@ pipeline
             }
         }
     }/* stages */
-    post
-    {
-        always
-        {
-            cleanWs()
-        }
-    }
 }/* pipeline */
