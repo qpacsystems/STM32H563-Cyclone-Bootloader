@@ -38,6 +38,9 @@
 // Create a section to place the boot mailbox in RAM
 #if defined(__CC_ARM)
 BootMailBox bootMailBox __attribute__((__section__(".boot_mailbox"), zero_init));
+#elif defined(__ICCARM__)
+#pragma location = ".boot_mailbox"
+__no_init BootMailBox bootMailBox;
 #elif (defined(__GNUC__) && defined(__MINGW32__)) || (defined(__GNUC__) && defined(__MINGW64__))
 extern BootMailBox bootMailBox;
 #elif defined(__GNUC__)
