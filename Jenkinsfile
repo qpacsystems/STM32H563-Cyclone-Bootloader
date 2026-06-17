@@ -109,4 +109,4 @@ pipeline
             }
         }
     }/* stages */
-}/* pipeline */
+}/* pipeline */ // Bootloader CI
